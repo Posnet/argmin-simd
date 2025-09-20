@@ -36,11 +36,10 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Install Rust nightly
-      uses: dtolnay/rust-toolchain@nightly
-      with:
-        targets: ${{ matrix.target }}
-        components: rustfmt, clippy
+    # The rust-toolchain.toml file specifies the exact version needed
+    # Just add the target for cross-compilation
+    - name: Add Rust target
+      run: rustup target add ${{ matrix.target }}
 
     - name: Cache cargo registry
       uses: actions/cache@v4
