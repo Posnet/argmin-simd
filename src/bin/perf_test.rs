@@ -1,7 +1,6 @@
 use argmin_simd::{
-    argmin_par_scalar, argmin_par_simd_16, argmin_par_simd_2, argmin_par_simd_4,
-    argmin_par_simd_8, argmin_scalar, argmin_simd_16, argmin_simd_2, argmin_simd_4,
-    argmin_simd_8,
+    argmin_par_scalar, argmin_par_simd_16, argmin_par_simd_2, argmin_par_simd_4, argmin_par_simd_8,
+    argmin_scalar, argmin_simd_16, argmin_simd_2, argmin_simd_4, argmin_simd_8,
 };
 use std::time::Instant;
 
