@@ -1,8 +1,5 @@
-use argmin_simd::argmin_scalar;
-// Temporarily unused - will re-enable after CI debugging
-#[allow(unused_imports)]
 use argmin_simd::{
-    argmin_par_scalar, argmin_par_simd, argmin_simd, argmin_simd_16, argmin_simd_2,
+    argmin_par_scalar, argmin_par_simd, argmin_scalar, argmin_simd, argmin_simd_16, argmin_simd_2,
     argmin_simd_4, argmin_simd_8,
 };
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
@@ -15,13 +12,14 @@ fn generate_data(size: usize) -> Vec<f64> {
 
 fn benchmark_argmin(c: &mut Criterion) {
     let sizes = [
-        1_000,  // Just one small size for quick CI debugging
+        1_000, 10_000, 50_000, 100_000, 250_000, 500_000, 1_000_000, 2_500_000, 5_000_000,
+        10_000_000, 25_000_000, 40_000_000,
     ];
 
     let mut group = c.benchmark_group("argmin");
-    group.sample_size(10);  // Reduce samples for speed
 
-    for &size in sizes.iter() {
+    for &size in sizes.iter().take(7) {
+        // Only test up to 1M for all variants
         let data = generate_data(size);
         group.throughput(Throughput::Elements(size as u64));
 
@@ -29,24 +27,22 @@ fn benchmark_argmin(c: &mut Criterion) {
             b.iter(|| argmin_scalar(black_box(data)))
         });
 
-        // Temporarily disabled for faster CI debugging
-        // group.bench_with_input(BenchmarkId::new("simd", size), &data, |b, data| {
-        //     b.iter(|| argmin_simd(black_box(data)))
-        // });
+        group.bench_with_input(BenchmarkId::new("simd", size), &data, |b, data| {
+            b.iter(|| argmin_simd(black_box(data)))
+        });
 
-        // group.bench_with_input(BenchmarkId::new("par_scalar", size), &data, |b, data| {
-        //     b.iter(|| argmin_par_scalar(black_box(data)))
-        // });
+        group.bench_with_input(BenchmarkId::new("par_scalar", size), &data, |b, data| {
+            b.iter(|| argmin_par_scalar(black_box(data)))
+        });
 
-        // group.bench_with_input(BenchmarkId::new("par_simd", size), &data, |b, data| {
-        //     b.iter(|| argmin_par_simd(black_box(data)))
-        // });
+        group.bench_with_input(BenchmarkId::new("par_simd", size), &data, |b, data| {
+            b.iter(|| argmin_par_simd(black_box(data)))
+        });
     }
 
     group.finish();
 }
 
-#[allow(dead_code)]
 fn benchmark_lane_widths(c: &mut Criterion) {
     let sizes = [100_000, 1_000_000, 10_000_000];
 
@@ -76,7 +72,6 @@ fn benchmark_lane_widths(c: &mut Criterion) {
     group.finish();
 }
 
-#[allow(dead_code)]
 fn benchmark_large_scale(c: &mut Criterion) {
     let sizes = [1_000_000, 5_000_000, 10_000_000, 25_000_000, 40_000_000];
 
@@ -107,7 +102,6 @@ fn benchmark_large_scale(c: &mut Criterion) {
     group.finish();
 }
 
-#[allow(dead_code)]
 fn benchmark_million_special(c: &mut Criterion) {
     let mut group = c.benchmark_group("million_elements");
 
@@ -178,8 +172,8 @@ fn benchmark_million_special(c: &mut Criterion) {
 criterion_group!(
     benches,
     benchmark_argmin,
-    // benchmark_lane_widths,
-    // benchmark_large_scale,
-    // benchmark_million_special
+    benchmark_lane_widths,
+    benchmark_large_scale,
+    benchmark_million_special
 );
 criterion_main!(benches);
