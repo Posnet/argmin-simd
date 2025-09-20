@@ -60,13 +60,22 @@ jobs:
       shell: bash
       run: |
         echo "Checking for criterion output..."
-        if [ -d "target/criterion" ]; then
-          echo "Found criterion directory with the following structure:"
-          find target/criterion -type f -name "index.html" | head -20
+
+        # Check both possible locations for criterion output
+        CRITERION_DIR=""
+        if [ -d "target/${{ matrix.target }}/criterion" ]; then
+          CRITERION_DIR="target/${{ matrix.target }}/criterion"
+        elif [ -d "target/criterion" ]; then
+          CRITERION_DIR="target/criterion"
+        fi
+
+        if [ -n "$CRITERION_DIR" ]; then
+          echo "Found criterion directory at $CRITERION_DIR with the following structure:"
+          find "$CRITERION_DIR" -type f -name "index.html" | head -20
 
           # Create properly structured artifact directory
           mkdir -p benchmark-results
-          cp -r target/criterion/* benchmark-results/
+          cp -r "$CRITERION_DIR"/* benchmark-results/
 
           # Create metadata file
           echo "{
@@ -79,6 +88,7 @@ jobs:
           echo "Packaged $(find benchmark-results -type f -name "*.html" | wc -l) HTML files"
         else
           echo "ERROR: No criterion directory found!"
+          echo "Checked: target/${{ matrix.target }}/criterion and target/criterion"
           echo "Creating empty results with error message..."
           mkdir -p benchmark-results
           echo "{\"error\": \"No benchmark results generated\"}" > benchmark-results/metadata.json
