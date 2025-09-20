@@ -9,10 +9,11 @@
 // ==========================================================================
 
 #![feature(portable_simd)]
+#![allow(incomplete_features)]
 #![feature(generic_const_exprs)]
 
 use rayon::prelude::*;
-use std::simd::{f64x2, f64x4, f64x8, prelude::*, LaneCount, Simd, SupportedLaneCount};
+use std::simd::{f64x8, prelude::*, LaneCount, Simd, SupportedLaneCount};
 
 pub fn argmin_scalar(data: &[f64]) -> Option<usize> {
     data.iter()
@@ -81,8 +82,8 @@ where
 
     // Initialize indices array
     let mut init_indices = [0.0f64; N];
-    for i in 0..N {
-        init_indices[i] = i as f64;
+    for (i, val) in init_indices.iter_mut().enumerate().take(N) {
+        *val = i as f64;
     }
 
     let mut min_vals = Simd::<f64, N>::splat(f64::MAX);
@@ -196,8 +197,8 @@ where
 
             // Initialize indices array
             let mut init_indices = [0.0f64; N];
-            for i in 0..N {
-                init_indices[i] = i as f64;
+            for (i, val) in init_indices.iter_mut().enumerate().take(N) {
+                *val = i as f64;
             }
 
             let mut min_vals = Simd::<f64, N>::splat(f64::MAX);

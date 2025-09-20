@@ -1,6 +1,6 @@
 use argmin_simd::{
-    argmin_par_scalar, argmin_par_simd, argmin_par_simd_16, argmin_par_simd_2, argmin_par_simd_4,
-    argmin_par_simd_8, argmin_scalar, argmin_simd, argmin_simd_16, argmin_simd_2, argmin_simd_4,
+    argmin_par_scalar, argmin_par_simd_16, argmin_par_simd_2, argmin_par_simd_4,
+    argmin_par_simd_8, argmin_scalar, argmin_simd_16, argmin_simd_2, argmin_simd_4,
     argmin_simd_8,
 };
 use std::time::Instant;
@@ -66,7 +66,7 @@ fn test_size(size: usize, iterations: usize) {
         bench_function("SIMD-16:", argmin_simd_16, &data, expected, iterations);
 
     println!("\n--- Parallel ---");
-    let (par_scalar_time, par_scalar_tp) = bench_function(
+    let (par_scalar_time, _par_scalar_tp) = bench_function(
         "Par Scalar:",
         argmin_par_scalar,
         &data,
@@ -114,7 +114,7 @@ fn test_size(size: usize, iterations: usize) {
     println!("Par SIMD-16:         {:.2}x", scalar_time / par_simd16_time);
 
     // Find best configurations
-    let simd_times = vec![
+    let simd_times = [
         ("SIMD-2", simd2_time, simd2_tp),
         ("SIMD-4", simd4_time, simd4_tp),
         ("SIMD-8", simd8_time, simd8_tp),
@@ -125,7 +125,7 @@ fn test_size(size: usize, iterations: usize) {
         .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
         .unwrap();
 
-    let par_times = vec![
+    let par_times = [
         ("Par SIMD-2", par_simd2_time, par_simd2_tp),
         ("Par SIMD-4", par_simd4_time, par_simd4_tp),
         ("Par SIMD-8", par_simd8_time, par_simd8_tp),
@@ -182,16 +182,7 @@ fn main() {
     println!("- Optimal lane width depends on CPU architecture and cache hierarchy");
 }
 
-// Add num_cpus dependency detection
-#[cfg(not(feature = "num_cpus"))]
-fn num_cpus_get() -> usize {
-    1
-}
-
-#[cfg(feature = "num_cpus")]
-use num_cpus;
-
-#[cfg(not(feature = "num_cpus"))]
+// CPU count detection
 mod num_cpus {
     pub fn get() -> usize {
         std::thread::available_parallelism()
