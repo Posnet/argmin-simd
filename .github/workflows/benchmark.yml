@@ -1,0 +1,277 @@
+name: Benchmark
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  benchmark:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: x86_64
+            target: x86_64-unknown-linux-gnu
+          - os: macos-latest
+            arch: aarch64
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            arch: x86_64
+            target: x86_64-pc-windows-msvc
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust nightly
+      uses: dtolnay/rust-toolchain@nightly
+      with:
+        targets: ${{ matrix.target }}
+        components: rustfmt, clippy
+
+    - name: Cache cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-bench-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Run benchmarks
+      run: |
+        cargo bench --target ${{ matrix.target }}
+      env:
+        CARGO_BUILD_TARGET: ${{ matrix.target }}
+
+    - name: Copy benchmark results
+      shell: bash
+      run: |
+        mkdir -p benchmark-results/${{ matrix.os }}-${{ matrix.arch }}
+        cp -r target/criterion/* benchmark-results/${{ matrix.os }}-${{ matrix.arch }}/ || true
+
+    - name: Upload benchmark results
+      uses: actions/upload-artifact@v4
+      with:
+        name: benchmark-${{ matrix.os }}-${{ matrix.arch }}
+        path: benchmark-results/
+
+  generate-report:
+    needs: benchmark
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: benchmark-artifacts/
+
+    - name: Install Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Generate HTML report
+      run: |
+        python3 << 'EOF'
+        import os
+        import json
+        from pathlib import Path
+        import shutil
+
+        # Create output directory
+        os.makedirs("public", exist_ok=True)
+
+        # Generate index.html
+        html_content = """
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>argmin-simd Benchmark Results</title>
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+                    line-height: 1.6;
+                    margin: 0;
+                    padding: 20px;
+                    background: #f6f8fa;
+                }
+                .container {
+                    max-width: 1200px;
+                    margin: 0 auto;
+                    background: white;
+                    padding: 20px;
+                    border-radius: 6px;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+                }
+                h1 {
+                    color: #24292e;
+                    border-bottom: 1px solid #e1e4e8;
+                    padding-bottom: 10px;
+                }
+                h2 {
+                    color: #24292e;
+                    margin-top: 30px;
+                }
+                .platform {
+                    background: #f6f8fa;
+                    border: 1px solid #d1d5da;
+                    border-radius: 6px;
+                    padding: 15px;
+                    margin: 20px 0;
+                }
+                .platform h3 {
+                    margin-top: 0;
+                    color: #0969da;
+                }
+                .report-link {
+                    display: inline-block;
+                    padding: 8px 16px;
+                    background: #0969da;
+                    color: white;
+                    text-decoration: none;
+                    border-radius: 6px;
+                    margin: 5px;
+                }
+                .report-link:hover {
+                    background: #0860ca;
+                }
+                .summary {
+                    background: #f0f9ff;
+                    border: 1px solid #0969da;
+                    border-radius: 6px;
+                    padding: 15px;
+                    margin: 20px 0;
+                }
+                iframe {
+                    width: 100%;
+                    height: 600px;
+                    border: 1px solid #d1d5da;
+                    border-radius: 6px;
+                    margin: 10px 0;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>argmin-simd Benchmark Results</h1>
+
+                <div class="summary">
+                    <h2>Performance Summary</h2>
+                    <p>Benchmarks run on multiple architectures using Criterion.rs</p>
+                    <ul>
+                        <li><strong>Scalar</strong>: Standard iterator-based implementation</li>
+                        <li><strong>SIMD</strong>: Portable SIMD with 8-wide vectors</li>
+                        <li><strong>Parallel Scalar</strong>: Rayon-based parallel chunks</li>
+                        <li><strong>Parallel SIMD</strong>: Combined Rayon + SIMD</li>
+                    </ul>
+                </div>
+        """
+
+        # Process each platform's results
+        for artifact_dir in Path("benchmark-artifacts").iterdir():
+            if artifact_dir.is_dir():
+                platform_name = artifact_dir.name.replace("benchmark-", "")
+
+                # Copy criterion reports
+                platform_dir = Path("public") / platform_name
+                if (artifact_dir / "benchmark-results").exists():
+                    shutil.copytree(
+                        artifact_dir / "benchmark-results",
+                        platform_dir,
+                        dirs_exist_ok=True
+                    )
+
+                html_content += f"""
+                <div class="platform">
+                    <h3>Platform: {platform_name.replace('-', ' ').title()}</h3>
+        """
+
+                # Check for criterion HTML reports
+                criterion_reports = []
+                if platform_dir.exists():
+                    for report_dir in platform_dir.rglob("report/index.html"):
+                        rel_path = report_dir.relative_to(Path("public"))
+                        bench_name = report_dir.parent.parent.name
+                        criterion_reports.append((bench_name, str(rel_path)))
+
+                if criterion_reports:
+                    for bench_name, report_path in criterion_reports:
+                        html_content += f"""
+                    <a href="{report_path}" class="report-link">View {bench_name} Report</a>
+        """
+                else:
+                    html_content += """
+                    <p>No benchmark results available for this platform.</p>
+        """
+
+                html_content += """
+                </div>
+        """
+
+        html_content += """
+                <div class="summary">
+                    <h2>About</h2>
+                    <p>These benchmarks are automatically generated on each push to the repository.</p>
+                    <p>View the source code at <a href="https://github.com/Posnet/argmin-simd">GitHub</a></p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        with open("public/index.html", "w") as f:
+            f.write(html_content)
+
+        print("HTML report generated successfully")
+        EOF
+
+    - name: Copy Criterion reports
+      run: |
+        for dir in benchmark-artifacts/*/; do
+          if [ -d "$dir" ]; then
+            platform=$(basename "$dir" | sed 's/benchmark-//')
+            if [ -d "$dir/benchmark-results" ]; then
+              mkdir -p "public/$platform"
+              cp -r "$dir/benchmark-results/"* "public/$platform/" || true
+            fi
+          fi
+        done
+
+        # Ensure criterion HTML is preserved
+        find public -name "*.html" -type f | head -20
+
+    - name: Upload GitHub Pages artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: ./public
+
+  deploy:
+    needs: generate-report
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4

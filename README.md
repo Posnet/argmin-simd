@@ -2,6 +2,8 @@
 
 Fast argmin (index of minimum) implementation using Rust's portable SIMD API with parallel processing support.
 
+[View Benchmark Results](https://posnet.github.io/argmin-simd/) - Performance metrics across multiple architectures
+
 ## Problem
 
 Find the index of the smallest element in a large array of f64 values, with constraints:
