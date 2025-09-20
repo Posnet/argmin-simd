@@ -12,14 +12,15 @@ fn generate_data(size: usize) -> Vec<f64> {
 
 fn benchmark_argmin(c: &mut Criterion) {
     let sizes = [
-        1_000, 10_000, 50_000, 100_000, 250_000, 500_000, 1_000_000, 2_500_000, 5_000_000,
-        10_000_000, 25_000_000, 40_000_000,
+        1_000, 10_000, 100_000,  // Reduced for debugging
+        // 50_000, 100_000, 250_000, 500_000, 1_000_000, 2_500_000, 5_000_000,
+        // 10_000_000, 25_000_000, 40_000_000,
     ];
 
     let mut group = c.benchmark_group("argmin");
 
-    for &size in sizes.iter().take(7) {
-        // Only test up to 1M for all variants
+    for &size in sizes.iter() {
+        // Test all sizes in the array
         let data = generate_data(size);
         group.throughput(Throughput::Elements(size as u64));
 
@@ -172,8 +173,8 @@ fn benchmark_million_special(c: &mut Criterion) {
 criterion_group!(
     benches,
     benchmark_argmin,
-    benchmark_lane_widths,
-    benchmark_large_scale,
-    benchmark_million_special
+    // benchmark_lane_widths,
+    // benchmark_large_scale,
+    // benchmark_million_special
 );
 criterion_main!(benches);
