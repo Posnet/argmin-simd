@@ -1,4 +1,4 @@
-use argmin_simd::{argmin_scalar, argmin_simd};
+use argmin_simd::{argmin_scalar, argmin_simd, argmin_par_scalar, argmin_par_simd};
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 use rand::{Rng, SeedableRng};
 
@@ -22,6 +22,14 @@ fn benchmark_argmin(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::new("simd", size), &data, |b, data| {
             b.iter(|| argmin_simd(black_box(data)))
         });
+
+        group.bench_with_input(BenchmarkId::new("par_scalar", size), &data, |b, data| {
+            b.iter(|| argmin_par_scalar(black_box(data)))
+        });
+
+        group.bench_with_input(BenchmarkId::new("par_simd", size), &data, |b, data| {
+            b.iter(|| argmin_par_simd(black_box(data)))
+        });
     }
 
     group.finish();
@@ -38,6 +46,12 @@ fn benchmark_million_special(c: &mut Criterion) {
     group.bench_function("random_simd", |b| {
         b.iter(|| argmin_simd(black_box(&random_data)))
     });
+    group.bench_function("random_par_scalar", |b| {
+        b.iter(|| argmin_par_scalar(black_box(&random_data)))
+    });
+    group.bench_function("random_par_simd", |b| {
+        b.iter(|| argmin_par_simd(black_box(&random_data)))
+    });
 
     // Case 2: Min at beginning
     let mut begin_min = vec![1.0; 1_000_000];
@@ -47,6 +61,12 @@ fn benchmark_million_special(c: &mut Criterion) {
     });
     group.bench_function("begin_simd", |b| {
         b.iter(|| argmin_simd(black_box(&begin_min)))
+    });
+    group.bench_function("begin_par_scalar", |b| {
+        b.iter(|| argmin_par_scalar(black_box(&begin_min)))
+    });
+    group.bench_function("begin_par_simd", |b| {
+        b.iter(|| argmin_par_simd(black_box(&begin_min)))
     });
 
     // Case 3: Min at end
@@ -58,6 +78,12 @@ fn benchmark_million_special(c: &mut Criterion) {
     group.bench_function("end_simd", |b| {
         b.iter(|| argmin_simd(black_box(&end_min)))
     });
+    group.bench_function("end_par_scalar", |b| {
+        b.iter(|| argmin_par_scalar(black_box(&end_min)))
+    });
+    group.bench_function("end_par_simd", |b| {
+        b.iter(|| argmin_par_simd(black_box(&end_min)))
+    });
 
     // Case 4: Min in middle
     let mut mid_min = vec![1.0; 1_000_000];
@@ -68,9 +94,15 @@ fn benchmark_million_special(c: &mut Criterion) {
     group.bench_function("middle_simd", |b| {
         b.iter(|| argmin_simd(black_box(&mid_min)))
     });
+    group.bench_function("middle_par_scalar", |b| {
+        b.iter(|| argmin_par_scalar(black_box(&mid_min)))
+    });
+    group.bench_function("middle_par_simd", |b| {
+        b.iter(|| argmin_par_simd(black_box(&mid_min)))
+    });
 
     group.finish();
 }
 
-criterion_group!(benches, benchmark_million_special);
+criterion_group!(benches, benchmark_argmin, benchmark_million_special);
 criterion_main!(benches);

@@ -2,6 +2,7 @@
 
 ## Goals
 - Implement fast argmin for f64 arrays using portable_simd
+- Add parallel implementations using rayon
 - Leverage constraints: positive/zero values only, no NaN/infinity
 - Benchmark against scalar implementation
 

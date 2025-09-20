@@ -1,6 +1,6 @@
 # argmin-simd
 
-Fast argmin (index of minimum) implementation using Rust's portable SIMD API.
+Fast argmin (index of minimum) implementation using Rust's portable SIMD API with parallel processing support.
 
 ## Problem
 
@@ -11,25 +11,36 @@ Find the index of the smallest element in a large array of f64 values, with cons
 
 ## Solution
 
-Uses Rust's nightly portable_simd feature to process 8 elements simultaneously:
-- Maintains parallel tracking of both values and indices
-- Efficient horizontal reduction at the end
-- Handles remainder elements correctly
+Provides four implementations:
+1. **Scalar**: Standard iterator-based approach
+2. **SIMD**: Uses portable_simd to process 8 elements at once
+3. **Parallel Scalar**: Uses rayon for parallel chunk processing
+4. **Parallel SIMD**: Combines rayon parallelism with SIMD operations
 
 ## Performance
 
-For 1 million f64 elements:
-- **Scalar**: 1862 µs/iteration
-- **SIMD**: 181 µs/iteration
-- **Speedup**: 10.26x
+For 1 million f64 elements (with optimized compiler flags):
+- **Scalar**: 1882 µs/iteration
+- **SIMD**: 164 µs/iteration (11.5x speedup)
+- **Parallel Scalar**: 310 µs/iteration (6.1x speedup)
+- **Parallel SIMD**: 81 µs/iteration (23.2x speedup)
+
+## Optimized Build Configuration
+
+The project includes aggressive optimization flags for maximum performance:
+- Single codegen unit for better inlining
+- Native CPU target for optimal instruction selection
+- Fat LTO for whole-program optimization
+- Custom LLVM tuning for unrolling
 
 ## Usage
 
 ```rust
-use argmin_simd::{argmin_scalar, argmin_simd};
+use argmin_simd::{argmin_scalar, argmin_simd, argmin_par_scalar, argmin_par_simd};
 
 let data = vec![5.0, 2.0, 8.0, 1.0, 9.0];
 assert_eq!(argmin_simd(&data), Some(3));
+assert_eq!(argmin_par_simd(&data), Some(3));
 ```
 
 ## Building
@@ -39,4 +50,5 @@ Requires nightly Rust for portable_simd:
 ```bash
 cargo +nightly test
 cargo +nightly bench
+cargo +nightly run --release --bin perf_test
 ```
