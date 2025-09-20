@@ -1,5 +1,8 @@
-use argmin_simd::{argmin_scalar, argmin_simd, argmin_par_scalar, argmin_par_simd};
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use argmin_simd::{
+    argmin_par_scalar, argmin_par_simd, argmin_scalar, argmin_simd, argmin_simd_16, argmin_simd_2,
+    argmin_simd_4, argmin_simd_8,
+};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use rand::{Rng, SeedableRng};
 
 fn generate_data(size: usize) -> Vec<f64> {
@@ -8,12 +11,17 @@ fn generate_data(size: usize) -> Vec<f64> {
 }
 
 fn benchmark_argmin(c: &mut Criterion) {
-    let sizes = [1000, 10_000, 100_000, 1_000_000];
+    let sizes = [
+        1_000, 10_000, 50_000, 100_000, 250_000, 500_000, 1_000_000, 2_500_000, 5_000_000,
+        10_000_000, 25_000_000, 40_000_000,
+    ];
 
     let mut group = c.benchmark_group("argmin");
 
-    for size in &sizes {
-        let data = generate_data(*size);
+    for &size in sizes.iter().take(7) {
+        // Only test up to 1M for all variants
+        let data = generate_data(size);
+        group.throughput(Throughput::Elements(size as u64));
 
         group.bench_with_input(BenchmarkId::new("scalar", size), &data, |b, data| {
             b.iter(|| argmin_scalar(black_box(data)))
@@ -21,6 +29,65 @@ fn benchmark_argmin(c: &mut Criterion) {
 
         group.bench_with_input(BenchmarkId::new("simd", size), &data, |b, data| {
             b.iter(|| argmin_simd(black_box(data)))
+        });
+
+        group.bench_with_input(BenchmarkId::new("par_scalar", size), &data, |b, data| {
+            b.iter(|| argmin_par_scalar(black_box(data)))
+        });
+
+        group.bench_with_input(BenchmarkId::new("par_simd", size), &data, |b, data| {
+            b.iter(|| argmin_par_simd(black_box(data)))
+        });
+    }
+
+    group.finish();
+}
+
+fn benchmark_lane_widths(c: &mut Criterion) {
+    let sizes = [100_000, 1_000_000, 10_000_000];
+
+    let mut group = c.benchmark_group("lane_widths");
+
+    for &size in &sizes {
+        let data = generate_data(size);
+        group.throughput(Throughput::Elements(size as u64));
+
+        group.bench_with_input(BenchmarkId::new("simd_2", size), &data, |b, data| {
+            b.iter(|| argmin_simd_2(black_box(data)))
+        });
+
+        group.bench_with_input(BenchmarkId::new("simd_4", size), &data, |b, data| {
+            b.iter(|| argmin_simd_4(black_box(data)))
+        });
+
+        group.bench_with_input(BenchmarkId::new("simd_8", size), &data, |b, data| {
+            b.iter(|| argmin_simd_8(black_box(data)))
+        });
+
+        group.bench_with_input(BenchmarkId::new("simd_16", size), &data, |b, data| {
+            b.iter(|| argmin_simd_16(black_box(data)))
+        });
+    }
+
+    group.finish();
+}
+
+fn benchmark_large_scale(c: &mut Criterion) {
+    let sizes = [1_000_000, 5_000_000, 10_000_000, 25_000_000, 40_000_000];
+
+    let mut group = c.benchmark_group("large_scale");
+    group.sample_size(20); // Reduce sample size for large arrays
+
+    for &size in &sizes {
+        let data = generate_data(size);
+        group.throughput(Throughput::Elements(size as u64));
+
+        group.bench_with_input(BenchmarkId::new("scalar", size), &data, |b, data| {
+            b.iter(|| argmin_scalar(black_box(data)))
+        });
+
+        group.bench_with_input(BenchmarkId::new("simd_8", size), &data, |b, data| {
+            b.iter(|| argmin_simd_8(black_box(data)))
         });
 
         group.bench_with_input(BenchmarkId::new("par_scalar", size), &data, |b, data| {
@@ -75,9 +142,7 @@ fn benchmark_million_special(c: &mut Criterion) {
     group.bench_function("end_scalar", |b| {
         b.iter(|| argmin_scalar(black_box(&end_min)))
     });
-    group.bench_function("end_simd", |b| {
-        b.iter(|| argmin_simd(black_box(&end_min)))
-    });
+    group.bench_function("end_simd", |b| b.iter(|| argmin_simd(black_box(&end_min))));
     group.bench_function("end_par_scalar", |b| {
         b.iter(|| argmin_par_scalar(black_box(&end_min)))
     });
@@ -104,5 +169,11 @@ fn benchmark_million_special(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, benchmark_argmin, benchmark_million_special);
+criterion_group!(
+    benches,
+    benchmark_argmin,
+    benchmark_lane_widths,
+    benchmark_large_scale,
+    benchmark_million_special
+);
 criterion_main!(benches);
